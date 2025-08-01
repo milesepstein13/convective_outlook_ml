@@ -2,6 +2,7 @@ from torch.utils.data import Dataset
 import numpy as np
 import torch
 
+
 class LazyWeatherDataset(Dataset):
     def __init__(self, xr_dataset, y, input_dimensions = 2):
         self.ds = xr_dataset  # full xarray dataset
@@ -39,15 +40,15 @@ class LazyWeatherDataset(Dataset):
                     da = da.transpose("latitude", "longitude", "tod")
                     reshaped = da.values.transpose(2, 0, 1)  # tod, lat, lon → tod, H, W
                 channels.append(reshaped)
-            
+
             x = np.concatenate(channels, axis=0)  # concatenate over channels
             x = torch.tensor(x, dtype=torch.float32)  # shape: (C, H, W)
-            assert x.ndim == self._input_dimensions
+            assert x.ndim == self._input_dimensions - 1
 
         elif self._input_dimensions == 5:
             tod = day_data.sizes["tod"]
             channels_per_tod = []
-        
+
             for var in day_data.data_vars:
                 da = day_data[var]
                 if "level" in da.dims:
@@ -58,10 +59,10 @@ class LazyWeatherDataset(Dataset):
                     da = da.transpose("latitude", "longitude", "tod")
                     data = da.values[np.newaxis, ...]  # add a channel axis: (1, H, W, T)
                 channels_per_tod.append(data)
-        
+
             x = np.concatenate(channels_per_tod, axis=0)  # (C, H, W, T)
             x = torch.tensor(x, dtype=torch.float32)
-            assert x.ndim == self._input_dimensions
+            assert x.ndim == self._input_dimensions - 1
 
 
         else:

@@ -54,6 +54,8 @@ def run_crossval(X, y, model_name, n_splits=5, batch_size=64, epochs=5, optimize
         input_dim = x_example.shape[1:] if x_example.ndim > 2 else x_example.shape[1]
         output_dim = y_example.shape[1] if y_example.ndim > 1 else 1
 
+        # print(f"Input dimensions: {input_dim}")
+
         model = get_model(model_name, input_dim, output_dim)
         optimizer = optimizer_class(model.parameters(), lr=lr)
 

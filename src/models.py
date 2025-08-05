@@ -24,7 +24,7 @@ class CNN3D(nn.Module):
     def __init__(self, input_channels: int, output_dim: int):
         super(CNN3D, self).__init__()
 
-        self.conv1 = nn.Conv3d(input_channels, 32, kernel_size=(2, 3, 3), padding=(0, 1, 1))
+        self.conv1 = nn.Conv3d(input_channels, 32, kernel_size=(2, 3, 3), padding=(0, 1, 1)) 
         self.bn1 = nn.BatchNorm3d(32)
 
         self.conv2 = nn.Conv3d(32, 64, kernel_size=(2, 3, 3), padding=(0, 1, 1))

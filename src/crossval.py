@@ -1,7 +1,7 @@
 from torch.utils.data import DataLoader
 from sklearn.model_selection import KFold
 from src.dataset import LazyWeatherDataset
-from src.preprocessing import standardize, flatten_target_dataset
+from src.preprocessing import flatten_target_dataset, standardize_with_stats, compute_overall_from_daily_stats
 from src.train_loop import train_one_epoch, evaluate
 from src.models import get_model, get_model_input_dims
 import torch
@@ -10,12 +10,14 @@ from torch.utils.tensorboard import SummaryWriter
 import os
 import pandas as pd
 import numpy as np
+import xarray as xr
 
 
-def run_crossval(X, y, model_name, n_splits=5, batch_size=64, epochs=5, optimizer_class=torch.optim.Adam, lr=1e-3, criterion=nn.MSELoss(), level=None, restart = False):
+def run_crossval(X, y, stats, model_name, n_splits=5, batch_size=64, epochs=5, optimizer_class=torch.optim.Adam, lr=1e-3, criterion=nn.MSELoss(), level=None, restart = False):
     days = X.day.values
     kf = KFold(n_splits=n_splits, shuffle=False)
-    results = []
+
+    overall_stats = compute_overall_from_daily_stats(stats)
 
     for fold, (train_idx, val_idx) in enumerate(kf.split(days)):
 
@@ -30,6 +32,7 @@ def run_crossval(X, y, model_name, n_splits=5, batch_size=64, epochs=5, optimize
         print(f"\nFold {fold}:")
 
         # ==== Load data ====
+        print("Loading data")
         train_days = days[train_idx]
         val_days = days[val_idx]
 
@@ -39,8 +42,22 @@ def run_crossval(X, y, model_name, n_splits=5, batch_size=64, epochs=5, optimize
         y_train = y.sel(time=train_days)
         y_val = y.sel(time=val_days)
 
-        X_train_standardized, X_val_standardized = standardize(X_train, X_val)
+        print("standardizing data")
+        fold_stats = compute_overall_from_daily_stats(stats.sel(day=train_days))
 
+        # Dummy means and std to "restandardize" the data with.
+        # Essentially, the subsequent standardize() will, for both the current training and validation sets
+        # 1) unstandardize (since we start with data that has been standardized across the entire non-test dataset), then
+        # 2) standardize the current fold's training and validation data according to the mean and std of the current fold's training set
+        conversion_stats = xr.Dataset({
+            v: ((fold_stats[v] - overall_stats[v]) / overall_stats[v.replace('_mean', '_std')]) if v.endswith('_mean') else (fold_stats[v] / overall_stats[v])
+            for v in fold_stats.data_vars
+        })
+
+        X_train_standardized = standardize_with_stats(X_train, conversion_stats)
+        X_val_standardized = standardize_with_stats(X_val, conversion_stats)
+
+        print("setting up training")
         input_dimensions = get_model_input_dims(model_name)
 
         train_ds = LazyWeatherDataset(X_train_standardized, y=flatten_target_dataset(y_train), input_dimensions=input_dimensions)
@@ -79,8 +96,6 @@ def run_crossval(X, y, model_name, n_splits=5, batch_size=64, epochs=5, optimize
 
             if start_epoch >= epochs:
                 print(f"Fold already trained (latest epoch = {start_epoch-1} ≥ target = {epochs-1}) — skipping.")
-                acc = evaluate(model, val_loader, criterion)
-                results.append(acc)
                 continue
             else:
                 print(f"Resuming training from epoch {start_epoch}/{epochs}")
@@ -91,7 +106,27 @@ def run_crossval(X, y, model_name, n_splits=5, batch_size=64, epochs=5, optimize
         # ==== Training loop ====
         for epoch in range(start_epoch, epochs):
             train_loss = train_one_epoch(model, train_loader, optimizer, criterion, epoch, writer)
-            val_loss = evaluate(model, val_loader, criterion, epoch, writer)
+            val_loss, all_preds, all_targets = evaluate(model, val_loader, criterion, epoch, writer)
+
+            # hazards and variables in same order as flatten_target_dataset concatenates them
+            hazards = ['All Hazard', 'Wind', 'Hail', 'Tornado']
+            variables = ['bias', 'east_shift', 'north_shift']
+            
+            # For each hazard-variable combination
+            for h_idx, hazard in enumerate(hazards):
+                for v_idx, var in enumerate(variables):
+                    col_idx = h_idx * len(variables) + v_idx
+            
+                    writer.add_histogram(
+                        f"val_predictions/{hazard}/{var}",
+                        all_preds[:, col_idx],
+                        epoch
+                    )
+                    writer.add_histogram(
+                        f"val_targets/{hazard}/{var}",
+                        all_targets[:, col_idx],
+                        epoch
+                    )
 
             print(f"  Epoch {epoch+1}/{epochs} — Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}")
 

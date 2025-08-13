@@ -70,5 +70,3 @@ class LazyWeatherDataset(Dataset):
 
         y = self.y[idx].clone()
         return x, y
-
-    

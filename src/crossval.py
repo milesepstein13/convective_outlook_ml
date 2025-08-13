@@ -13,7 +13,15 @@ import numpy as np
 import xarray as xr
 
 
-def run_crossval(X, y, stats, model_name, n_splits=5, batch_size=64, epochs=5, optimizer_class=torch.optim.Adam, lr=1e-3, criterion=nn.MSELoss(), level=None, restart = False):
+def run_crossval(X, y, stats, model_name, n_splits=5, batch_size=64, epochs=5, optimizer_class=torch.optim.Adam, lr=1e-3, criterion=nn.MSELoss(), level=None, restart = False, force_cpu = False):
+
+    if force_cpu:
+        device = torch.device("cpu")
+    else:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    print(f"Using device: {device}")
+
     days = X.day.values
     kf = KFold(n_splits=n_splits, shuffle=False)
 
@@ -21,7 +29,7 @@ def run_crossval(X, y, stats, model_name, n_splits=5, batch_size=64, epochs=5, o
 
     for fold, (train_idx, val_idx) in enumerate(kf.split(days)):
 
-        model_spec = f"{model_name}/level={level}/opt={optimizer_class.__name__}_lr={lr}_crit={criterion.__class__.__name__}/fold={fold}"
+        model_spec = f"{model_name}/level={level}/opt={optimizer_class.__name__}_lr={lr}_batch={batch_size}_crit={criterion.__class__.__name__}/fold={fold}"
 
         log_dir = f"runs/{model_spec}"
         writer = SummaryWriter(log_dir=log_dir)
@@ -32,7 +40,7 @@ def run_crossval(X, y, stats, model_name, n_splits=5, batch_size=64, epochs=5, o
         print(f"\nFold {fold}:")
 
         # ==== Load data ====
-        print("Loading data")
+        print("Loading data...")
         train_days = days[train_idx]
         val_days = days[val_idx]
 
@@ -42,7 +50,7 @@ def run_crossval(X, y, stats, model_name, n_splits=5, batch_size=64, epochs=5, o
         y_train = y.sel(time=train_days)
         y_val = y.sel(time=val_days)
 
-        print("standardizing data")
+        print("Standardizing data...")
         fold_stats = compute_overall_from_daily_stats(stats.sel(day=train_days))
 
         # Dummy means and std to "restandardize" the data with.
@@ -57,14 +65,14 @@ def run_crossval(X, y, stats, model_name, n_splits=5, batch_size=64, epochs=5, o
         X_train_standardized = standardize_with_stats(X_train, conversion_stats)
         X_val_standardized = standardize_with_stats(X_val, conversion_stats)
 
-        print("setting up training")
+        print("Setting up datasets...")
         input_dimensions = get_model_input_dims(model_name)
 
         train_ds = LazyWeatherDataset(X_train_standardized, y=flatten_target_dataset(y_train), input_dimensions=input_dimensions)
         val_ds = LazyWeatherDataset(X_val_standardized, y=flatten_target_dataset(y_val), input_dimensions=input_dimensions)
 
-        train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
-        val_loader = DataLoader(val_ds, batch_size=batch_size)
+        train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True, persistent_workers=True)
+        val_loader = DataLoader(val_ds, batch_size=batch_size, num_workers=4, pin_memory=True, persistent_workers=True)
 
         # ==== Model setup ====
         x_example, y_example = next(iter(train_loader))
@@ -73,7 +81,8 @@ def run_crossval(X, y, stats, model_name, n_splits=5, batch_size=64, epochs=5, o
 
         # print(f"Input dimensions: {input_dim}")
 
-        model = get_model(model_name, input_dim, output_dim)
+        model = get_model(model_name, input_dim, output_dim).to(device)
+        print(f"Model device: {next(model.parameters()).device}")
         optimizer = optimizer_class(model.parameters(), lr=lr)
 
         latest_path = os.path.join(model_dict, "latest.pt")
@@ -105,18 +114,20 @@ def run_crossval(X, y, stats, model_name, n_splits=5, batch_size=64, epochs=5, o
 
         # ==== Training loop ====
         for epoch in range(start_epoch, epochs):
-            train_loss = train_one_epoch(model, train_loader, optimizer, criterion, epoch, writer)
-            val_loss, all_preds, all_targets = evaluate(model, val_loader, criterion, epoch, writer)
+            print("Training...")
+            train_loss = train_one_epoch(model, train_loader, optimizer, criterion, device, epoch, writer)
+            print("Validating...")
+            val_loss, all_preds, all_targets = evaluate(model, val_loader, criterion, device, epoch, writer)
 
             # hazards and variables in same order as flatten_target_dataset concatenates them
             hazards = ['All Hazard', 'Wind', 'Hail', 'Tornado']
             variables = ['bias', 'east_shift', 'north_shift']
-            
+
             # For each hazard-variable combination
             for h_idx, hazard in enumerate(hazards):
                 for v_idx, var in enumerate(variables):
                     col_idx = h_idx * len(variables) + v_idx
-            
+
                     writer.add_histogram(
                         f"val_predictions/{hazard}/{var}",
                         all_preds[:, col_idx],

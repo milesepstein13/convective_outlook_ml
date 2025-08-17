@@ -1,0 +1,2 @@
+model,mean_latest_train_loss,std_latest_train_loss,mean_latest_val_loss,std_latest_val_loss,mean_best_train_loss,std_best_train_loss,mean_best_val_loss,std_best_val_loss,avg_best_epoch
+linear_regression/level=small/opt=Adam_lr=0.001_crit=MSELoss,70.90281196594239,10.72765718996424,66.05339632034301,26.997149270467215,70.90281196594239,10.72765718996424,66.05339632034301,26.997149270467215,1

@@ -7,8 +7,10 @@ def train_one_epoch(model, loader, optimizer, criterion, device, epoch, writer):
     # print("1")
     running_train_loss = 0.0
     for batch_X, batch_y in loader:
+        # print('a')
         batch_X = batch_X.to(device)
         batch_y = batch_y.to(device)
+        # print('b')
         # print(f"Batch_X device: {batch_X.device}, Batch_y device: {batch_y.device}")
         optimizer.zero_grad()
         outputs = model(batch_X)

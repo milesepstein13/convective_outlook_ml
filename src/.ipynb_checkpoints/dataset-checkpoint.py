@@ -5,7 +5,7 @@ import torch
 
 class LazyWeatherDataset(Dataset):
     def __init__(self, xr_dataset, y, input_dimensions = 2):
-        self.ds = xr_dataset  # full xarray dataset
+        self.ds = xr_dataset.load()  # full xarray dataset
         self.y = y            # (332, target_dim) torch tensor
         self._input_dimensions = input_dimensions  # number of dimensions to flatten into: 2: day, all others (fully flattened), 4: day, lat, lon, channel (includes tod and level), 5: day, lat, lon, tod, channel (includes level)
 
@@ -13,7 +13,7 @@ class LazyWeatherDataset(Dataset):
         return len(self.y)
 
     def __getitem__(self, idx):
-        day_data = self.ds.sel(day=self.ds.day[idx]).load()
+        day_data = self.ds.sel(day=self.ds.day[idx])
 
         if self._input_dimensions == 2:
             features = []

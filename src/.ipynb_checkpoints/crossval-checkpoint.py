@@ -13,6 +13,7 @@ import numpy as np
 import shutil
 import xarray as xr
 from tensorboard.backend.event_processing import event_accumulator
+from tqdm import tqdm
 
 
 def run_crossval(X, y, stats, model_name, n_splits=5, batch_size=64, epochs=5, optimizer_class=torch.optim.Adam, lr=1e-3, criterion=nn.MSELoss(), level=None, restart = False, force_cpu = False):
@@ -125,7 +126,8 @@ def run_crossval(X, y, stats, model_name, n_splits=5, batch_size=64, epochs=5, o
             print("Starting training from scratch")
 
         # ==== Training loop ====
-        for epoch in range(start_epoch, epochs):
+        progress_bar = tqdm(range(start_epoch, epochs), desc="Training", unit="epoch")
+        for epoch in progress_bar:
             # print("Training...")
             train_loss = train_one_epoch(model, train_loader, optimizer, criterion, device, epoch, writer)
             # print("Validating...")
@@ -151,7 +153,11 @@ def run_crossval(X, y, stats, model_name, n_splits=5, batch_size=64, epochs=5, o
                         epoch
                     )
 
-            print(f"  Epoch {epoch+1}/{epochs} — Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}")
+            #print(f"  Epoch {epoch+1}/{epochs} — Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}")
+            progress_bar.set_postfix({
+                "train_loss": f"{train_loss:.4f}",
+                "val_loss": f"{val_loss:.4f}"
+            })
 
             # Save latest
             torch.save({
@@ -239,19 +245,22 @@ def run_crossval(X, y, stats, model_name, n_splits=5, batch_size=64, epochs=5, o
             size_guidance={event_accumulator.SCALARS: 0}  # load all scalars only
         )
         ea.Reload()
-
+        
         train_data = [(e.step, e.value) for e in ea.Scalars("Loss/train")]
         val_data = [(e.step, e.value) for e in ea.Scalars("Loss/val")]
 
+        train_data = [(e.step, e.value) for e in ea.Scalars("Loss/train")]
+        #print([s for s, _ in train_data])
+
         # Just take the values (assumes all folds same length)
         train_curves.append([v for _, v in train_data])
-        print(len(train_curves[-1]))
+        #print(len(train_curves[-1]))
         val_curves.append([v for _, v in val_data])
 
     # print("Calculating")
     # Convert to numpy for averaging
     train_curves = np.array(train_curves)
-    print(train_curves.shape)
+    # print(train_curves.shape)
     val_curves = np.array(val_curves)
 
     # Average over folds

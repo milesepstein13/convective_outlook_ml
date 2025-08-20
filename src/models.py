@@ -52,13 +52,26 @@ def get_model(name: str, input_dim, output_dim):
         in_channels = input_dim[0]  # = 41
         return CNN3D(in_channels, output_dim, p_drop_conv=.2, p_drop_fc=.4, conv_kernel_sizes=[(3, 5, 5), (3, 5, 5), (2, 3, 3)], conv_channels=[8, 16, 32], pool_kernel_sizes=[(1, 2, 2), (1, 2, 2), None], activation = F.gelu, approximate = "tanh")
 
+
+    elif name == "cnn3d_3_layer_1_3":
+        in_channels = input_dim[0]  # = 41
+        return CNN3D(in_channels, output_dim, p_drop_conv=.1, p_drop_fc=.3, conv_kernel_sizes=[(2, 3, 3), (2, 3, 3), (2, 3, 3)], conv_channels=[32, 64, 128], pool_kernel_sizes=[(1, 2, 2), (1, 2, 2), None], activation = F.gelu, approximate = "tanh")
+
+    elif name == "cnn3d_3_layer_big_1_3":
+        in_channels = input_dim[0]  # = 41
+        return CNN3D(in_channels, output_dim, p_drop_conv=.1, p_drop_fc=.3, conv_kernel_sizes=[(3, 5, 5), (3, 5, 5), (2, 3, 3)], conv_channels=[32, 64, 128], pool_kernel_sizes=[(1, 2, 2), (1, 2, 2), None], activation = F.gelu, approximate = "tanh")
+
+    elif name == "cnn3d_3_layer_fewer_channels_1_3":
+        in_channels = input_dim[0]  # = 41
+        return CNN3D(in_channels, output_dim, p_drop_conv=.1, p_drop_fc=.3, conv_kernel_sizes=[(3, 5, 5), (3, 5, 5), (2, 3, 3)], conv_channels=[8, 16, 32], pool_kernel_sizes=[(1, 2, 2), (1, 2, 2), None], activation = F.gelu, approximate = "tanh")
+
     raise ValueError(f"undefined model name: {name}")
 
 
 def get_model_input_dims(name: str):
     if name == "linear_regression":
         return 2
-    if name in ["cnn3d", "cnn3d_dropout_0_5", "cnn3d_dropout_5_5", "cnn3d_dropout_5_0", "cnn3d_gelu_0_5", "cnn3d_gelu_2_6", "cnn3d_big_kernal", "cnn3d_huge_kernal", "cnn3d_3_layer", "cnn3d_3_layer_big", "cnn3d_fewer_channels", "cnn3d_3_layer_fewer_channels"]:
+    if name in ["cnn3d", "cnn3d_dropout_0_5", "cnn3d_dropout_5_5", "cnn3d_dropout_5_0", "cnn3d_gelu_0_5", "cnn3d_gelu_2_6", "cnn3d_big_kernal", "cnn3d_huge_kernal", "cnn3d_3_layer", "cnn3d_3_layer_big", "cnn3d_fewer_channels", "cnn3d_3_layer_fewer_channels", "cnn3d_3_layer_1_3", "cnn3d_3_layer_big_1_3", "cnn3d_3_layer_fewer_channels_1_3"]:
         return 5
     else:
         raise ValueError(f"undefined model name: {name}")

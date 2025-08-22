@@ -23,6 +23,12 @@ def run_crossval(X, y, stats, model_name, n_splits=5, batch_size=64, epochs=5, o
     else:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+    if model_name in ["predict_mean", "predict_zero", "predict_true_zero"]:
+        no_params = True
+
+    else:
+        no_params = False
+
     print(f"Using device: {device}")
 
     days = X.day.values
@@ -30,12 +36,16 @@ def run_crossval(X, y, stats, model_name, n_splits=5, batch_size=64, epochs=5, o
 
     overall_stats = compute_overall_from_daily_stats(stats)
 
+    train_counts = []
+    val_counts = []
     for fold, (train_idx, val_idx) in enumerate(kf.split(days)):
+
+        train_counts.append(train_idx.shape[0])
+        val_counts.append(val_idx.shape[0])
 
         model_spec = f"{model_name}/level={level}/opt={optimizer_class.__name__}_lr={lr}_batch={batch_size}_crit={criterion.__class__.__name__}/fold={fold}"
 
         log_dir = f"runs/{model_spec}"
-
 
         model_dict = f"models/{model_spec}/"
 
@@ -62,6 +72,7 @@ def run_crossval(X, y, stats, model_name, n_splits=5, batch_size=64, epochs=5, o
 
         y_train = y.sel(time=train_days)
         y_val = y.sel(time=val_days)
+
 
         print("Standardizing data...")
         fold_stats = compute_overall_from_daily_stats(stats.sel(day=train_days))
@@ -93,10 +104,25 @@ def run_crossval(X, y, stats, model_name, n_splits=5, batch_size=64, epochs=5, o
         output_dim = y_example.shape[1] if y_example.ndim > 1 else 1
 
         # print(f"Input dimensions: {input_dim}")
+        if model_name == 'predict_mean':
+            # TODO: predict training mean (gives error of outlooks if accounting for average biases over time)
+            targets = flatten_target_dataset(y_train).mean(dim=0).detach().clone()
+        elif model_name == 'predict_true_zero':
+            # TODO: targets = zero (without detrending, so will give error of actual outlooks)
+            targets = torch.zeros(output_dim)
+        elif model_name == 'predict_zero':
+            targets = torch.zeros(output_dim)
+        else:
+            targets = None
 
-        model = get_model(model_name, input_dim, output_dim).to(device)
-        print(f"Model device: {next(model.parameters()).device}")
-        optimizer = optimizer_class(model.parameters(), lr=lr)
+        model = get_model(model_name, input_dim, output_dim, targets).to(device)
+
+        if no_params:
+            print("Model has no parameters — skipping device check")
+            optimizer = None
+        else:
+            print(f"Model device: {next(model.parameters()).device}")
+            optimizer = optimizer_class(model.parameters(), lr=lr)
 
         latest_path = os.path.join(model_dict, "latest.pt")
         best_path = os.path.join(model_dict, "best.pt")
@@ -113,7 +139,8 @@ def run_crossval(X, y, stats, model_name, n_splits=5, batch_size=64, epochs=5, o
         if os.path.exists(latest_path) and not restart:
             checkpoint = torch.load(latest_path, weights_only=False)
             model.load_state_dict(checkpoint['model_state_dict'])
-            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            if not no_params:
+                optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             start_epoch = checkpoint['epoch'] + 1
 
             if start_epoch >= epochs:
@@ -129,7 +156,7 @@ def run_crossval(X, y, stats, model_name, n_splits=5, batch_size=64, epochs=5, o
         progress_bar = tqdm(range(start_epoch, epochs), desc="Training", unit="epoch")
         for epoch in progress_bar:
             # print("Training...")
-            train_loss = train_one_epoch(model, train_loader, optimizer, criterion, device, epoch, writer)
+            train_loss = train_one_epoch(model, train_loader, optimizer, criterion, device, epoch, writer, no_params)
             # print("Validating...")
             val_loss, all_preds, all_targets = evaluate(model, val_loader, criterion, device, epoch, writer)
 
@@ -153,31 +180,50 @@ def run_crossval(X, y, stats, model_name, n_splits=5, batch_size=64, epochs=5, o
                         epoch
                     )
 
-            #print(f"  Epoch {epoch+1}/{epochs} — Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}")
+            # print(f"  Epoch {epoch+1}/{epochs} — Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}")
             progress_bar.set_postfix({
                 "train_loss": f"{train_loss:.4f}",
                 "val_loss": f"{val_loss:.4f}"
             })
 
-            # Save latest
-            torch.save({
-                'epoch': epoch,
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'train_loss': train_loss,
-                'val_loss': val_loss,
-            }, latest_path)
+            if no_params:
+                # Save latest
+                torch.save({
+                    'epoch': epoch,
+                    'model_state_dict': model.state_dict(),
+                    'train_loss': train_loss,
+                    'val_loss': val_loss,
+                }, latest_path)
 
-            # Save best
-            if val_loss < best_val_loss:
-                best_val_loss = val_loss
+                # Save best
+                if val_loss < best_val_loss:
+                    best_val_loss = val_loss
+                    torch.save({
+                        'epoch': epoch,
+                        'model_state_dict': model.state_dict(),
+                        'train_loss': train_loss,
+                        'val_loss': val_loss,
+                    }, best_path)
+            else:
+                # Save latest
                 torch.save({
                     'epoch': epoch,
                     'model_state_dict': model.state_dict(),
                     'optimizer_state_dict': optimizer.state_dict(),
                     'train_loss': train_loss,
                     'val_loss': val_loss,
-                }, best_path)
+                }, latest_path)
+
+                # Save best
+                if val_loss < best_val_loss:
+                    best_val_loss = val_loss
+                    torch.save({
+                        'epoch': epoch,
+                        'model_state_dict': model.state_dict(),
+                        'optimizer_state_dict': optimizer.state_dict(),
+                        'train_loss': train_loss,
+                        'val_loss': val_loss,
+                    }, best_path)
 
     latest_train_scores = []
     latest_val_scores = []
@@ -201,15 +247,15 @@ def run_crossval(X, y, stats, model_name, n_splits=5, batch_size=64, epochs=5, o
     # Save to global CSV
     row = {
         "model": model_spec.split("/fold=")[0],
-        "mean_latest_train_loss": np.mean(latest_train_scores),
+        "mean_latest_train_loss": np.average(latest_train_scores, weights = np.array(train_counts)),
         "std_latest_train_loss": np.std(latest_train_scores),
-        "mean_latest_val_loss": np.mean(latest_val_scores),
+        "mean_latest_val_loss": np.average(latest_val_scores, weights = np.array(train_counts)),
         "std_latest_val_loss": np.std(latest_val_scores),
-        "mean_best_train_loss": np.mean(best_train_scores),
+        "mean_best_train_loss": np.average(best_train_scores, weights = np.array(train_counts)),
         "std_best_train_loss": np.std(best_train_scores),
-        "mean_best_val_loss": np.mean(best_val_scores),
+        "mean_best_val_loss": np.average(best_val_scores, weights = np.array(train_counts)),
         "std_best_val_loss": np.std(best_val_scores),
-        "avg_best_epoch": int(round(np.mean(best_epochs))),
+        "avg_best_epoch": int(round(np.average(best_epochs, weights = np.array(train_counts)))),
     }
 
     results_path = "results/results.csv"
@@ -245,16 +291,16 @@ def run_crossval(X, y, stats, model_name, n_splits=5, batch_size=64, epochs=5, o
             size_guidance={event_accumulator.SCALARS: 0}  # load all scalars only
         )
         ea.Reload()
-        
+
         train_data = [(e.step, e.value) for e in ea.Scalars("Loss/train")]
         val_data = [(e.step, e.value) for e in ea.Scalars("Loss/val")]
 
         train_data = [(e.step, e.value) for e in ea.Scalars("Loss/train")]
-        #print([s for s, _ in train_data])
+        # print([s for s, _ in train_data])
 
         # Just take the values (assumes all folds same length)
         train_curves.append([v for _, v in train_data])
-        #print(len(train_curves[-1]))
+        # print(len(train_curves[-1]))
         val_curves.append([v for _, v in val_data])
 
     # print("Calculating")
@@ -264,8 +310,8 @@ def run_crossval(X, y, stats, model_name, n_splits=5, batch_size=64, epochs=5, o
     val_curves = np.array(val_curves)
 
     # Average over folds
-    avg_train_curve = np.mean(train_curves, axis=0)
-    avg_val_curve = np.mean(val_curves, axis=0)
+    avg_train_curve = np.average(train_curves, weights = np.array(train_counts), axis=0)
+    avg_val_curve = np.average(val_curves, weights = np.array(val_counts), axis=0)
 
     # print("Writing")
     # Write averaged curves to fold=avg logdir
@@ -276,4 +322,4 @@ def run_crossval(X, y, stats, model_name, n_splits=5, batch_size=64, epochs=5, o
 
     avg_writer.close()
 
-    return best_val_scores
+    return best_val_scores, train_counts, val_counts

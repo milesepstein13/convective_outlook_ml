@@ -105,11 +105,8 @@ def run_crossval(X, y, stats, model_name, n_splits=5, batch_size=64, epochs=5, o
 
         # print(f"Input dimensions: {input_dim}")
         if model_name == 'predict_mean':
-            # TODO: predict training mean (gives error of outlooks if accounting for average biases over time)
+            # predict training mean (gives error of outlooks if accounting for average biases over time)
             targets = flatten_target_dataset(y_train).mean(dim=0).detach().clone()
-        elif model_name == 'predict_true_zero':
-            # TODO: targets = zero (without detrending, so will give error of actual outlooks)
-            targets = torch.zeros(output_dim)
         elif model_name == 'predict_zero':
             targets = torch.zeros(output_dim)
         else:

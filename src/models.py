@@ -7,7 +7,7 @@ def get_model(name: str, input_dim, output_dim, targets = None):
     if name == "linear_regression":
         return nn.Linear(input_dim, output_dim)
 
-    if name in ["predict_mean", "predict_zero", "predict_true_zero"]:
+    if name in ["predict_mean", "predict_zero"]:
         return ConstantPredictor(targets)
 
     elif name == "cnn3d":

@@ -23,7 +23,7 @@ def run_crossval(X, y, stats, model_name, n_splits=5, batch_size=64, epochs=5, o
     else:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    if model_name in ["predict_mean", "predict_zero", "predict_true_zero"]:
+    if model_name in ["predict_mean", "predict_zero"]:
         no_params = True
 
     else:

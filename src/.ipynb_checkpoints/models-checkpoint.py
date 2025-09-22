@@ -167,6 +167,7 @@ class CNN3D(nn.Module):
         x = self.drop_fc(x)
         return self.fc(x)
 
+
 class ConstantPredictor(nn.Module):
     def __init__(self, target_values: torch.Tensor):
         super().__init__()

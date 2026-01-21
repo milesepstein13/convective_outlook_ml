@@ -7,7 +7,8 @@ from src.models import get_model, get_model_input_dims
 import torch
 import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
-import os
+import os, glob
+import gc
 import pandas as pd
 import numpy as np
 import shutil
@@ -23,7 +24,7 @@ def run_crossval(X, y, stats, model_name, n_splits=5, batch_size=64, epochs=5, o
     else:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    if model_name in ["predict_mean", "predict_zero", "predict_true_zero"]:
+    if model_name in ["predict_mean", "predict_zero"]:
         no_params = True
 
     else:
@@ -62,6 +63,18 @@ def run_crossval(X, y, stats, model_name, n_splits=5, batch_size=64, epochs=5, o
 
         print(f"\nFold {fold}:")
 
+        # inside fold loop, after model_spec / model_dict computed
+        latest_path = os.path.join(model_dict, "latest.pt")
+        best_path = os.path.join(model_dict, "best.pt")
+
+        # if restarting, you already delete dirs below, so do this check only when not restart
+        if (not restart) and os.path.exists(latest_path):
+            ckpt = torch.load(latest_path, map_location="cpu", weights_only=False)
+            start_epoch = ckpt["epoch"] + 1
+            if start_epoch >= epochs:
+                print(f"Fold {fold} already trained (latest epoch={start_epoch-1} ≥ target={epochs-1}) — skipping.")
+                continue
+
         # ==== Load data ====
         print("Loading data...")
         train_days = days[train_idx]
@@ -87,14 +100,19 @@ def run_crossval(X, y, stats, model_name, n_splits=5, batch_size=64, epochs=5, o
         })
 
         X_train_standardized = standardize_with_stats(X_train, conversion_stats)
+        del X_train
         X_val_standardized = standardize_with_stats(X_val, conversion_stats)
+        del X_val
 
         print("Setting up datasets...")
         input_dimensions = get_model_input_dims(model_name)
 
         train_ds = LazyWeatherDataset(X_train_standardized, y=flatten_target_dataset(y_train), input_dimensions=input_dimensions)
+        del X_train_standardized
         val_ds = LazyWeatherDataset(X_val_standardized, y=flatten_target_dataset(y_val), input_dimensions=input_dimensions)
+        del X_val_standardized
 
+        print("Setting up DataLoaders...")
         train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True, persistent_workers=True)
         val_loader = DataLoader(val_ds, batch_size=batch_size, num_workers=4, pin_memory=True, persistent_workers=True)
 
@@ -126,25 +144,24 @@ def run_crossval(X, y, stats, model_name, n_splits=5, batch_size=64, epochs=5, o
 
         # ==== Resume logic ====
         start_epoch = 0
+        print(best_path)
         if os.path.exists(best_path) and not restart:
+            print('best path exists')
             best_checkpoint = torch.load(best_path, weights_only=False)
             best_val_loss = best_checkpoint.get('val_loss', float('inf'))
         else:
             best_val_loss = float('inf')
 
         # Resume model from latest
+        print(latest_path)
         if os.path.exists(latest_path) and not restart:
+            print('latest path exists')
             checkpoint = torch.load(latest_path, weights_only=False)
             model.load_state_dict(checkpoint['model_state_dict'])
             if not no_params:
                 optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             start_epoch = checkpoint['epoch'] + 1
-
-            if start_epoch >= epochs:
-                print(f"Fold already trained (latest epoch = {start_epoch-1} ≥ target = {epochs-1}) — skipping.")
-                continue
-            else:
-                print(f"Resuming training from epoch {start_epoch}/{epochs}")
+            print(f"Resuming training from epoch {start_epoch}/{epochs}")
 
         else:
             print("Starting training from scratch")
@@ -221,6 +238,16 @@ def run_crossval(X, y, stats, model_name, n_splits=5, batch_size=64, epochs=5, o
                         'train_loss': train_loss,
                         'val_loss': val_loss,
                     }, best_path)
+
+        # end of fold (after training loop, before next fold)
+        print('Cleaning up by deleting things for this fold specifically')
+        writer.close()
+        del train_loader, val_loader, train_ds, val_ds
+        del y_train, y_val
+        del model, optimizer
+        gc.collect()
+        if device.type == "cuda":
+            torch.cuda.empty_cache()
 
     latest_train_scores = []
     latest_val_scores = []

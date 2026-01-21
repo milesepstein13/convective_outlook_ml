@@ -1,0 +1,23 @@
+#!/bin/bash
+#PBS -N cnn3d_cv
+#PBS -A UWAS0161
+#PBS -q main
+#PBS -l walltime=12:00:00
+#PBS -l select=1:ncpus=64:mpiprocs=1:ompthreads=1:ngpus=1
+
+set -eo pipefail
+
+cd /glade/u/home/milesep/convective_outlook_ml
+mkdir -p logs
+exec > logs/cnn3d_cv.${PBS_JOBID}.out 2>&1
+
+# strongly recommended to avoid thread oversubscription
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
+export NUMEXPR_NUM_THREADS=1
+
+module load conda
+conda activate mlco
+
+python -u train_crossval.py

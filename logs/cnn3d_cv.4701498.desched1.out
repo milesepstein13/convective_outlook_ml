@@ -1,0 +1,24 @@
+cnn3d_gelu_0_5 slgt_small_glade 0.001 8
+Using device: cuda
+
+Fold 0:
+Fold 0 already trained (latest epoch=49 ≥ target=49) — skipping.
+
+Fold 1:
+Fold 1 already trained (latest epoch=49 ≥ target=49) — skipping.
+
+Fold 2:
+Fold 2 already trained (latest epoch=49 ≥ target=49) — skipping.
+
+Fold 3:
+Fold 3 already trained (latest epoch=49 ≥ target=49) — skipping.
+
+Fold 4:
+Fold 4 already trained (latest epoch=49 ≥ target=49) — skipping.
+Logging average losses...
+Reading fold 0
+Reading fold 1
+Reading fold 2
+Reading fold 3
+Reading fold 4
+cnn3d_gelu_0_5: 0.871 ± 0.129

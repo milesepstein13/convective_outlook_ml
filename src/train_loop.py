@@ -37,8 +37,11 @@ def evaluate(model, loader, criterion, device, epoch = None, writer = None):
     total_samples = 0
     all_preds = []
     all_targets = []
+    i = 0
     with torch.no_grad():
         for batch_X, batch_y in loader:
+            # print("batch", i)
+            i += 1
             batch_X = batch_X.to(device)
             batch_y = batch_y.to(device)
             outputs = model(batch_X)

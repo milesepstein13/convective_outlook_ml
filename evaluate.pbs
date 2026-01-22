@@ -19,4 +19,4 @@ export NUMEXPR_NUM_THREADS=1
 module load conda
 conda activate mlco
 
-python -u train_crossval.py
+python -u evaluate_models.py

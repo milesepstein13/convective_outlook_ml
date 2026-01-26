@@ -4,9 +4,10 @@ import torch
 
 
 class LazyWeatherDataset(Dataset):
-    def __init__(self, xr_dataset, y, input_dimensions = 2):
+    def __init__(self, xr_dataset, y, input_dimensions = 2, dont_load = False):
         self.ds = xr_dataset  # full xarray dataset
-        self.ds.load()  # load for training but don't for evaluation of biggest models! (... or maybe do) Could also try persist? Here or later?
+        if not dont_load:
+            self.ds.load()  # load for training but don't for evaluation of biggest models! (... or maybe do) Could also try persist? Here or later?
         self.y = y            # (332, target_dim) torch tensor
         self._input_dimensions = input_dimensions  # number of dimensions to flatten into: 2: day, all others (fully flattened), 4: day, lat, lon, channel (includes tod and level), 5: day, lat, lon, tod, channel (includes level)
 

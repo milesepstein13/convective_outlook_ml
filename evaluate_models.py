@@ -63,8 +63,8 @@ def evaluate_model(X, y, stats, model_name, n_splits=5, batch_size=64, optimizer
         print("Setting up datasets...")
         input_dimensions = get_model_input_dims(model_name)
 
-        train_ds = LazyWeatherDataset(X_train_standardized, y=flatten_target_dataset(y_train), input_dimensions=input_dimensions)
-        val_ds = LazyWeatherDataset(X_val_standardized, y=flatten_target_dataset(y_val), input_dimensions=input_dimensions)
+        train_ds = LazyWeatherDataset(X_train_standardized, y=flatten_target_dataset(y_train), input_dimensions=input_dimensions, dont_load = True)
+        val_ds = LazyWeatherDataset(X_val_standardized, y=flatten_target_dataset(y_val), input_dimensions=input_dimensions, dont_load = True)
 
         train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
         val_loader = DataLoader(val_ds, batch_size=batch_size)

@@ -1,0 +1,35 @@
+cnn3d_gelu_0_5 slgt_full_glade 0.001 8
+Using device: cuda
+
+Fold 0:
+Fold 0 already trained (latest epoch=49 ≥ target=49) — skipping.
+
+Fold 1:
+Fold 1 already trained (latest epoch=49 ≥ target=49) — skipping.
+
+Fold 2:
+Fold 2 already trained (latest epoch=49 ≥ target=49) — skipping.
+
+Fold 3:
+Fold 3 already trained (latest epoch=49 ≥ target=49) — skipping.
+
+Fold 4:
+Fold 4 already trained (latest epoch=49 ≥ target=49) — skipping.
+Logging average losses...
+Reading fold 0
+Reading fold 1
+Reading fold 2
+Reading fold 3
+Reading fold 4
+cnn3d_gelu_0_5: 0.870 ± 0.136
+cnn3d_huge_kernal slgt_full_glade 0.001 8
+Using device: cuda
+
+Fold 0:
+Loading data...
+Standardizing data...
+Setting up datasets...
+Setting up DataLoaders...
+Model device: cuda:0
+Starting training from scratch
+Training:   0%|          | 0/50 [00:00<?, ?epoch/s]Training:   0%|          | 0/50 [21:47<?, ?epoch/s, train_loss=0.9699, val_loss=1.1518]Training:   2%|▏         | 1/50 [21:47<17:47:45, 1307.47s/epoch, train_loss=0.9699, val_loss=1.1518]Training:   2%|▏         | 1/50 [43:35<17:47:45, 1307.47s/epoch, train_loss=0.9316, val_loss=1.1520]Training:   4%|▍         | 2/50 [43:35<17:26:15, 1307.82s/epoch, train_loss=0.9316, val_loss=1.1520]

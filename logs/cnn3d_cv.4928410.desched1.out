@@ -1,0 +1,19 @@
+predict_mean small_glade 0.005 32
+Using device: cuda
+
+Fold 0:
+Loading data...
+Standardizing data...
+Setting up datasets...
+Setting up DataLoaders...
+Model has no parameters — skipping device check
+Starting training from scratch
+Training:   0%|          | 0/50 [00:00<?, ?epoch/s]Training:   0%|          | 0/50 [00:01<?, ?epoch/s]
+Traceback (most recent call last):
+  File "/glade/u/home/milesep/convective_outlook_ml/train_crossval.py", line 104, in <module>
+    scores, train_counts, val_counts = run_crossval(inputs, targets, stats, name, batch_size = batch_size, lr = lr, epochs = epoch, level = level, restart = True)
+                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/glade/u/home/milesep/convective_outlook_ml/src/crossval.py", line 187, in run_crossval
+    all_preds[:, col_idx],
+    ~~~~~~~~~^^^^^^^^^^^^
+IndexError: index 9 is out of bounds for dimension 1 with size 9

@@ -7,7 +7,7 @@ from src.models import get_model, get_model_input_dims
 import torch
 import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
-import os, glob
+import os
 import gc
 import pandas as pd
 import numpy as np
@@ -17,7 +17,7 @@ from tensorboard.backend.event_processing import event_accumulator
 from tqdm import tqdm
 
 
-def run_crossval(X, y, stats, model_name, n_splits=5, batch_size=64, epochs=5, optimizer_class=torch.optim.Adam, lr=1e-3, criterion=nn.MSELoss(), level=None, restart = False, force_cpu = False):
+def run_crossval(X, y, stats, model_name, n_splits=5, batch_size=64, epochs=5, optimizer_class=torch.optim.Adam, lr=1e-3, criterion=nn.MSELoss(), level=None, restart = False, force_cpu = False, target_str = ''):
 
     if force_cpu:
         device = torch.device("cpu")
@@ -44,7 +44,7 @@ def run_crossval(X, y, stats, model_name, n_splits=5, batch_size=64, epochs=5, o
         train_counts.append(train_idx.shape[0])
         val_counts.append(val_idx.shape[0])
 
-        model_spec = f"{model_name}/level={level}/opt={optimizer_class.__name__}_lr={lr}_batch={batch_size}_crit={criterion.__class__.__name__}/fold={fold}"
+        model_spec = f"{model_name}/level={level}{target_str}/opt={optimizer_class.__name__}_lr={lr}_batch={batch_size}_crit={criterion.__class__.__name__}/fold={fold}"
 
         log_dir = f"runs/{model_spec}"
 
@@ -171,7 +171,10 @@ def run_crossval(X, y, stats, model_name, n_splits=5, batch_size=64, epochs=5, o
             val_loss, all_preds, all_targets = evaluate(model, val_loader, criterion, device, epoch, writer)
 
             # hazards and variables in same order as flatten_target_dataset concatenates them
-            hazards = ['All Hazard', 'Wind', 'Hail', 'Tornado']
+            if target_str == '':
+                hazards = ['All Hazard', 'Wind', 'Hail', 'Tornado']
+            elif target_str == '_new':
+                hazards = ['Wind', 'Hail', 'Tornado']
             variables = ['bias', 'east_shift', 'north_shift']
 
             # For each hazard-variable combination
@@ -252,7 +255,7 @@ def run_crossval(X, y, stats, model_name, n_splits=5, batch_size=64, epochs=5, o
     best_epochs = []
 
     for fold in range(n_splits):
-        model_spec = f"{model_name}/level={level}/opt={optimizer_class.__name__}_lr={lr}_batch={batch_size}_crit={criterion.__class__.__name__}/fold={fold}"
+        model_spec = f"{model_name}/level={level}{target_str}/opt={optimizer_class.__name__}_lr={lr}_batch={batch_size}_crit={criterion.__class__.__name__}/fold={fold}"
         model_dir = os.path.join("models", model_spec)
 
         latest_ckpt = torch.load(os.path.join(model_dir, "latest.pt"), map_location="cpu", weights_only=False)
@@ -293,7 +296,7 @@ def run_crossval(X, y, stats, model_name, n_splits=5, batch_size=64, epochs=5, o
     print("Logging average losses...")
 
     # ==== After collecting fold scores ====
-    avg_log_dir = f"runs/{model_name}/level={level}/opt={optimizer_class.__name__}_lr={lr}_batch={batch_size}_crit={criterion.__class__.__name__}/fold=avg"
+    avg_log_dir = f"runs/{model_name}/level={level}{target_str}/opt={optimizer_class.__name__}_lr={lr}_batch={batch_size}_crit={criterion.__class__.__name__}/fold=avg"
     if os.path.exists(avg_log_dir):
         shutil.rmtree(avg_log_dir)
 
@@ -304,7 +307,7 @@ def run_crossval(X, y, stats, model_name, n_splits=5, batch_size=64, epochs=5, o
 
     for fold in range(n_splits):
         print(f"Reading fold {fold}")
-        fold_log_dir = f"runs/{model_name}/level={level}/opt={optimizer_class.__name__}_lr={lr}_batch={batch_size}_crit={criterion.__class__.__name__}/fold={fold}"
+        fold_log_dir = f"runs/{model_name}/level={level}{target_str}/opt={optimizer_class.__name__}_lr={lr}_batch={batch_size}_crit={criterion.__class__.__name__}/fold={fold}"
 
         ea = event_accumulator.EventAccumulator(
             fold_log_dir,
@@ -322,6 +325,8 @@ def run_crossval(X, y, stats, model_name, n_splits=5, batch_size=64, epochs=5, o
         train_curves.append([v for _, v in train_data])
         # print(len(train_curves[-1]))
         val_curves.append([v for _, v in val_data])
+
+        # print(train_curves)
 
     # print("Calculating")
     # Convert to numpy for averaging

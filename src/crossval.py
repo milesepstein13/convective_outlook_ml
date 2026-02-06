@@ -7,6 +7,7 @@ from src.models import get_model, get_model_input_dims
 import torch
 import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
+from src.loss import ShashNLL
 import os
 import gc
 import pandas as pd
@@ -119,7 +120,12 @@ def run_crossval(X, y, stats, model_name, n_splits=5, batch_size=64, epochs=5, o
         # ==== Model setup ====
         x_example, y_example = next(iter(train_loader))
         input_dim = x_example.shape[1:] if x_example.ndim > 2 else x_example.shape[1]
-        output_dim = y_example.shape[1] if y_example.ndim > 1 else 1
+        num_targets = y_example.shape[1] if y_example.ndim > 1 else 1
+
+        if isinstance(criterion, ShashNLL):
+            output_dim = num_targets * 4
+        else:
+            output_dim = num_targets
 
         # print(f"Input dimensions: {input_dim}")
         if model_name == 'predict_mean':
@@ -177,21 +183,22 @@ def run_crossval(X, y, stats, model_name, n_splits=5, batch_size=64, epochs=5, o
                 hazards = ['Wind', 'Hail', 'Tornado']
             variables = ['bias', 'east_shift', 'north_shift']
 
-            # For each hazard-variable combination
-            for h_idx, hazard in enumerate(hazards):
-                for v_idx, var in enumerate(variables):
-                    col_idx = h_idx * len(variables) + v_idx
+            if not isinstance(criterion, ShashNLL):
+                # For each hazard-variable combination
+                for h_idx, hazard in enumerate(hazards):
+                    for v_idx, var in enumerate(variables):
+                        col_idx = h_idx * len(variables) + v_idx
 
-                    writer.add_histogram(
-                        f"val_predictions/{hazard}/{var}",
-                        all_preds[:, col_idx],
-                        epoch
-                    )
-                    writer.add_histogram(
-                        f"val_targets/{hazard}/{var}",
-                        all_targets[:, col_idx],
-                        epoch
-                    )
+                        writer.add_histogram(
+                            f"val_predictions/{hazard}/{var}",
+                            all_preds[:, col_idx],
+                            epoch
+                        )
+                        writer.add_histogram(
+                            f"val_targets/{hazard}/{var}",
+                            all_targets[:, col_idx],
+                            epoch
+                        )
 
             # print(f"  Epoch {epoch+1}/{epochs} — Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}")
             progress_bar.set_postfix({

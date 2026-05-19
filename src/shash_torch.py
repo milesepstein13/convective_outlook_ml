@@ -165,31 +165,31 @@ class Shash:
         # These coefficients were computed by minimizing the maximum relative
         # error, and not by a simple least squares regression.
 
-        # coeffs = [
-        #     9.37541380598926e-06,
-        #     -0.000377732651131894,
-        #     0.00642826706073389,
-        #     -0.061281078712518,
-        #     0.390956214318641,
-        #     -0.0337884356755193,
-        #     0.00248824801827172,
-        # ]
+        coeffs = [
+            9.37541380598926e-06,
+            -0.000377732651131894,
+            0.00642826706073389,
+            -0.061281078712518,
+            0.390956214318641,
+            -0.0337884356755193,
+            0.00248824801827172,
+        ]
 
-        # val = (
-        #     coeffs[0] * q**6
-        #     + coeffs[1] * q**5
-        #     + coeffs[2] * q**4
-        #     + coeffs[3] * q**3
-        #     + coeffs[4] * q**2
-        #     + coeffs[5] * q**1
-        #     + coeffs[6] * q**0
-        # )
-        # return torch.exp(val)
-
-        jp = 0.25612601391340369863537463 * (
-            scipy.special.kv((q + 1) / 2, 0.25) + scipy.special.kv((q - 1) / 2, 0.25)
+        val = (
+            coeffs[0] * q**6
+            + coeffs[1] * q**5
+            + coeffs[2] * q**4
+            + coeffs[3] * q**3
+            + coeffs[4] * q**2
+            + coeffs[5] * q**1
+            + coeffs[6] * q**0
         )
-        return jp
+        return torch.exp(val)
+
+        # jp = 0.25612601391340369863537463 * (
+        #     scipy.special.kv((q + 1) / 2, 0.25) + scipy.special.kv((q - 1) / 2, 0.25)
+        # )
+        # return jp
 
     def prob(self, x):
         """Probability density function (pdf).
